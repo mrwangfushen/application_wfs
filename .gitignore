@@ -1,0 +1,5 @@
+build/
+dist/
+Local.mk
+/*.plist
+.DS_Store
