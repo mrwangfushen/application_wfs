@@ -16,7 +16,7 @@ A lightweight macOS menu bar app that adds practical gestures to Magic Mouse.
 
 ## Download and install
 
-1. Download the latest DMG from [Releases](https://github.com/mrwangfushen/application_wfs/releases).
+1. Download [Magic Mouse Booster 0.4.0](https://github.com/mrwangfushen/application_wfs/raw/refs/heads/main/Downloads/MagicMouseBooster-0.4.0.dmg).
 2. Open the DMG and drag **Magic Mouse Booster** to **Applications**.
 3. Launch the app.
 4. Allow **Magic Mouse Booster** in **System Settings → Privacy & Security → Accessibility**.
