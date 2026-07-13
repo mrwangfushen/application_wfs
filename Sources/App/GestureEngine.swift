@@ -47,6 +47,10 @@ final class GestureEngine {
         MPZEngineSetMiddleTapEnabled(handle, enabled)
     }
 
+    func setControlScrollEnabled(_ enabled: Bool) {
+        MPZEngineSetControlScrollEnabled(handle, enabled)
+    }
+
     func refreshDevices() {
         MPZEngineRefreshDevices(handle)
     }

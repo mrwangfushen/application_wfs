@@ -16,5 +16,6 @@ void MPZEngineSetTapClickDelayMilliseconds(MPZEngine *engine, double millisecond
 void MPZEngineSetPinchEnabled(MPZEngine *engine, bool enabled);
 void MPZEngineSetTapClickEnabled(MPZEngine *engine, bool enabled);
 void MPZEngineSetMiddleTapEnabled(MPZEngine *engine, bool enabled);
+void MPZEngineSetControlScrollEnabled(MPZEngine *engine, bool enabled);
 void MPZEngineRefreshDevices(MPZEngine *engine);
 size_t MPZEngineGetDeviceCount(MPZEngine *engine);

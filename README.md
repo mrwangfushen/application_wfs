@@ -1,33 +1,45 @@
+> If you find it useful, please give me a free star ⭐️
+
 # Magic Mouse Booster
 
-轻量级 macOS 菜单栏工具，为 Magic Mouse 增加实用手势。
+A lightweight macOS menu bar app that adds practical gestures to Magic Mouse.
 
-## 功能
+## Features
 
-- 双指捏合与张开：页面缩放
-- 轻点左右侧：左键与右键
-- 三指轻点：鼠标中键
-- 左右轻点等待时间：50–500 ms
+- Pinch with two fingers to zoom.
+- Tap the left or right side for a left or right click.
+- Tap with three fingers for a middle click.
+- Adjust the left/right tap delay from 50 to 500 ms.
+- Hold Control and swipe up to show all application windows (Mission Control).
+- Hold Control and swipe down to show all windows of the current application (App Exposé).
+- Enable or disable each feature from the menu bar.
 
-## 下载与安装
+## Download and install
 
-1. 从 [Releases](https://github.com/mrwangfushen/magic-mouse-booster/releases) 下载最新 DMG。
-2. 打开 DMG，将 **Magic Mouse Booster** 拖入“应用程序”。
-3. 启动应用，并在“系统设置 → 隐私与安全性 → 辅助功能”中授权。
+1. Download the latest DMG from [Releases](https://github.com/mrwangfushen/application_wfs/releases).
+2. Open the DMG and drag **Magic Mouse Booster** to **Applications**.
+3. Launch the app.
+4. Allow **Magic Mouse Booster** in **System Settings → Privacy & Security → Accessibility**.
 
-当前版本未经过 Apple 公证。若首次打开被阻止，请前往“系统设置 → 隐私与安全性”，点击“仍要打开”。
+This build is not notarized by Apple. If macOS blocks the first launch, open **System Settings → Privacy & Security** and click **Open Anyway**.
 
-## 要求
+## Requirements
 
-- Apple Silicon Mac
-- macOS 26 或更高版本
+- Apple silicon Mac
+- macOS 26 or later
 - Magic Mouse
 
-## 构建
+The Control + swipe feature uses the standard macOS Mission Control shortcuts. Keep **Control + Up Arrow** and **Control + Down Arrow** enabled in **System Settings → Keyboard → Keyboard Shortcuts → Mission Control**.
+
+## Build from source
 
 ```sh
-make verify
+make SIGN_IDENTITY=- verify
 make package
 ```
 
-应用使用 macOS 私有多点触控接口，未来系统更新可能需要适配。
+The app uses a private macOS multitouch framework, so a future macOS update may require changes.
+
+## License
+
+[MIT](LICENSE)

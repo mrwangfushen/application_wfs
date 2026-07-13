@@ -4,6 +4,7 @@ protocol SettingsViewControllerDelegate: AnyObject {
     func settingsViewControllerDidSetPinchEnabled(_ enabled: Bool)
     func settingsViewControllerDidSetTapClickEnabled(_ enabled: Bool)
     func settingsViewControllerDidSetMiddleTapEnabled(_ enabled: Bool)
+    func settingsViewControllerDidSetControlScrollEnabled(_ enabled: Bool)
     func settingsViewControllerDidSetSensitivity(_ sensitivity: Double)
     func settingsViewControllerDidSetTapClickDelayMilliseconds(_ milliseconds: Int)
     func settingsViewControllerDidRequestQuit()
@@ -27,6 +28,11 @@ final class SettingsViewController: NSViewController {
         target: nil,
         action: nil
     )
+    private let controlScrollCheckbox = NSButton(
+        checkboxWithTitle: "按住 Control 上下滑动显示窗口",
+        target: nil,
+        action: nil
+    )
     private let sensitivitySlider = NSSlider(
         value: 1.0,
         minValue: 0.5,
@@ -46,7 +52,7 @@ final class SettingsViewController: NSViewController {
     private let statusLabel = NSTextField(wrappingLabelWithString: "")
 
     override func loadView() {
-        let rootView = NSView(frame: NSRect(x: 0, y: 0, width: 330, height: 258))
+        let rootView = NSView(frame: NSRect(x: 0, y: 0, width: 330, height: 290))
         preferredContentSize = rootView.frame.size
 
         let titleLabel = NSTextField(labelWithString: "Magic Mouse Booster")
@@ -58,6 +64,8 @@ final class SettingsViewController: NSViewController {
         tapClickCheckbox.action = #selector(tapClickEnabledChanged(_:))
         middleTapCheckbox.target = self
         middleTapCheckbox.action = #selector(middleTapEnabledChanged(_:))
+        controlScrollCheckbox.target = self
+        controlScrollCheckbox.action = #selector(controlScrollEnabledChanged(_:))
 
         let sensitivityLabel = NSTextField(labelWithString: "灵敏度")
         sensitivitySlider.target = self
@@ -111,6 +119,7 @@ final class SettingsViewController: NSViewController {
                 tapClickCheckbox,
                 tapClickDelayRow,
                 middleTapCheckbox,
+                controlScrollCheckbox,
                 footerRow,
             ]
         )
@@ -138,6 +147,7 @@ final class SettingsViewController: NSViewController {
         pinchEnabled: Bool,
         tapClickEnabled: Bool,
         middleTapEnabled: Bool,
+        controlScrollEnabled: Bool,
         sensitivity: Double,
         tapClickDelayMilliseconds: Int,
         status: String
@@ -146,6 +156,7 @@ final class SettingsViewController: NSViewController {
         pinchCheckbox.state = pinchEnabled ? .on : .off
         tapClickCheckbox.state = tapClickEnabled ? .on : .off
         middleTapCheckbox.state = middleTapEnabled ? .on : .off
+        controlScrollCheckbox.state = controlScrollEnabled ? .on : .off
         sensitivitySlider.doubleValue = sensitivity
         sensitivitySlider.isEnabled = pinchEnabled
         sensitivityValueLabel.stringValue = String(format: "%.1f×", sensitivity)
@@ -169,6 +180,10 @@ final class SettingsViewController: NSViewController {
 
     @objc private func middleTapEnabledChanged(_ sender: NSButton) {
         delegate?.settingsViewControllerDidSetMiddleTapEnabled(sender.state == .on)
+    }
+
+    @objc private func controlScrollEnabledChanged(_ sender: NSButton) {
+        delegate?.settingsViewControllerDidSetControlScrollEnabled(sender.state == .on)
     }
 
     @objc private func sensitivityChanged(_ sender: NSSlider) {

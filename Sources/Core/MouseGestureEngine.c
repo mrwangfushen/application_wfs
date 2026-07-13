@@ -1,7 +1,9 @@
 #include "MouseGestureEngine.h"
 
 #include "MultitouchSupport.h"
+#include "ControlScrollRecognizer.h"
 #include "PinchRecognizer.h"
+#include "ScrollEventNormalizer.h"
 #include "TapRecognizer.h"
 
 #include <ApplicationServices/ApplicationServices.h>
@@ -21,6 +23,7 @@ enum {
 
 static const uint64_t kDefaultClickGuardNanoseconds = 80 * NSEC_PER_MSEC;
 static const uint64_t kDefaultTapClickDelayNanoseconds = 150 * NSEC_PER_MSEC;
+static const CFTimeInterval kRecentMagicMouseTouchInterval = 0.35;
 
 typedef struct {
     os_unfair_lock lock;
@@ -49,8 +52,11 @@ struct MPZEngine {
     bool pinchEnabled;
     bool tapClickEnabled;
     bool middleTapEnabled;
+    bool controlScrollEnabled;
     double sensitivity;
     uint64_t tapClickDelayNanoseconds;
+    CFTimeInterval lastMagicMouseTouchTimestamp;
+    MPZControlScrollRecognizer controlScrollRecognizer;
     MPZDeviceEntry **devices;
     size_t deviceCount;
     MPZDeviceEntry *activeDevice;
@@ -76,6 +82,34 @@ static CGEventRef eventTapCallback(
 );
 
 static void cancelPendingTaps(MPZPendingTapState *state);
+
+static void postWindowOverviewShortcut(MPZControlScrollAction action) {
+    CGKeyCode keyCode = 0;
+    if (action == MPZControlScrollShowApplicationWindows) {
+        keyCode = 125;
+    } else if (action == MPZControlScrollShowAllWindows) {
+        keyCode = 126;
+    } else {
+        return;
+    }
+
+    CGEventRef keyDown = CGEventCreateKeyboardEvent(NULL, keyCode, true);
+    CGEventRef keyUp = CGEventCreateKeyboardEvent(NULL, keyCode, false);
+    if (keyDown && keyUp) {
+        CGEventSetFlags(keyDown, kCGEventFlagMaskControl);
+        CGEventSetFlags(keyUp, kCGEventFlagMaskControl);
+        CGEventSetIntegerValueField(keyDown, kCGEventSourceUserData, MPZSyntheticEventTag);
+        CGEventSetIntegerValueField(keyUp, kCGEventSourceUserData, MPZSyntheticEventTag);
+        CGEventPost(kCGHIDEventTap, keyDown);
+        CGEventPost(kCGHIDEventTap, keyUp);
+    }
+    if (keyDown) {
+        CFRelease(keyDown);
+    }
+    if (keyUp) {
+        CFRelease(keyUp);
+    }
+}
 
 static void postGesture(MPZPinchOutput output) {
     if (output.phase == MPZGestureNone) {
@@ -504,6 +538,16 @@ void MPZEngineSetMiddleTapEnabled(MPZEngine *engine, bool enabled) {
     cancelPendingTaps(engine->pendingTapState);
 }
 
+void MPZEngineSetControlScrollEnabled(MPZEngine *engine, bool enabled) {
+    if (!engine) {
+        return;
+    }
+    os_unfair_lock_lock(&engine->lock);
+    engine->controlScrollEnabled = enabled;
+    MPZControlScrollRecognizerReset(&engine->controlScrollRecognizer);
+    os_unfair_lock_unlock(&engine->lock);
+}
+
 void MPZEngineRefreshDevices(MPZEngine *engine) {
     if (!engine || !MPZEngineIsEnabled(engine)) {
         return;
@@ -580,6 +624,9 @@ static int touchCallback(
     if (!engine->enabled) {
         os_unfair_lock_unlock(&engine->lock);
         return 0;
+    }
+    if (activeTouchCount > 0) {
+        engine->lastMagicMouseTouchTimestamp = CFAbsoluteTimeGetCurrent();
     }
 
     MPZPinchOutput output = {0};
@@ -666,14 +713,59 @@ static CGEventRef eventTapCallback(
 
     os_unfair_lock_lock(&engine->lock);
     bool suppress = engine->enabled && engine->activeDevice != NULL;
+    bool suppressControlScroll = false;
+    MPZControlScrollAction controlScrollAction = MPZControlScrollNone;
     if (type == kCGEventScrollWheel && !suppress) {
+        cancelPendingTaps(engine->pendingTapState);
         for (size_t index = 0; index < engine->deviceCount; index++) {
             MPZTapRecognizerInvalidate(&engine->devices[index]->tapRecognizer);
         }
+
+        CGEventFlags flags = CGEventGetFlags(event);
+        bool controlPressed = (flags & kCGEventFlagMaskControl) != 0;
+        bool continuous = CGEventGetIntegerValueField(
+            event,
+            kCGScrollWheelEventIsContinuous
+        ) != 0;
+        CFTimeInterval elapsed = CFAbsoluteTimeGetCurrent()
+            - engine->lastMagicMouseTouchTimestamp;
+        bool fromMagicMouse = continuous
+            && engine->lastMagicMouseTouchTimestamp > 0
+            && elapsed >= 0
+            && elapsed <= kRecentMagicMouseTouchInterval;
+
+        if (engine->controlScrollEnabled && controlPressed && fromMagicMouse) {
+            suppressControlScroll = true;
+            int64_t scrollPhase = CGEventGetIntegerValueField(
+                event,
+                kCGScrollWheelEventScrollPhase
+            );
+            if ((scrollPhase & kCGScrollPhaseBegan) != 0) {
+                MPZControlScrollRecognizerReset(&engine->controlScrollRecognizer);
+            }
+            int64_t momentumPhase = CGEventGetIntegerValueField(
+                event,
+                kCGScrollWheelEventMomentumPhase
+            );
+            if (momentumPhase == 0) {
+                controlScrollAction = MPZControlScrollRecognizerProcess(
+                    &engine->controlScrollRecognizer,
+                    MPZPhysicalScrollDeltaY(event),
+                    CFAbsoluteTimeGetCurrent(),
+                    true,
+                    true
+                );
+            }
+        } else {
+            MPZControlScrollRecognizerReset(&engine->controlScrollRecognizer);
+        }
+    } else if (type == kCGEventScrollWheel) {
+        MPZControlScrollRecognizerReset(&engine->controlScrollRecognizer);
     }
     os_unfair_lock_unlock(&engine->lock);
 
-    if (suppress && type == kCGEventScrollWheel) {
+    postWindowOverviewShortcut(controlScrollAction);
+    if ((suppress || suppressControlScroll) && type == kCGEventScrollWheel) {
         return NULL;
     }
     return event;

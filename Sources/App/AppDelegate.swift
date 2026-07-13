@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
         static let pinchEnabled = "pinchEnabled"
         static let tapClickEnabled = "tapClickEnabled"
         static let middleTapEnabled = "middleTapEnabled"
+        static let controlScrollEnabled = "controlScrollEnabled"
         static let sensitivity = "sensitivity"
         static let tapClickDelayMilliseconds = "tapClickDelayMilliseconds"
     }
@@ -30,8 +31,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
         defaults.bool(forKey: DefaultsKey.middleTapEnabled)
     }
 
+    private var controlScrollEnabled: Bool {
+        defaults.bool(forKey: DefaultsKey.controlScrollEnabled)
+    }
+
     private var anyFeatureEnabled: Bool {
-        pinchEnabled || tapClickEnabled || middleTapEnabled
+        pinchEnabled || tapClickEnabled || middleTapEnabled || controlScrollEnabled
     }
 
     private var sensitivity: Double {
@@ -47,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
             DefaultsKey.pinchEnabled: true,
             DefaultsKey.tapClickEnabled: false,
             DefaultsKey.middleTapEnabled: false,
+            DefaultsKey.controlScrollEnabled: false,
             DefaultsKey.sensitivity: 1.0,
             DefaultsKey.tapClickDelayMilliseconds: 150,
         ])
@@ -152,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
         gestureEngine.setPinchEnabled(pinchEnabled)
         gestureEngine.setTapClickEnabled(tapClickEnabled)
         gestureEngine.setMiddleTapEnabled(middleTapEnabled)
+        gestureEngine.setControlScrollEnabled(controlScrollEnabled)
         guard anyFeatureEnabled else {
             gestureEngine.setEnabled(false)
             return
@@ -196,6 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
             pinchEnabled: pinchEnabled,
             tapClickEnabled: tapClickEnabled,
             middleTapEnabled: middleTapEnabled,
+            controlScrollEnabled: controlScrollEnabled,
             sensitivity: sensitivity,
             tapClickDelayMilliseconds: tapClickDelayMilliseconds,
             status: statusText()
@@ -217,6 +225,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
 
     func settingsViewControllerDidSetMiddleTapEnabled(_ enabled: Bool) {
         defaults.set(enabled, forKey: DefaultsKey.middleTapEnabled)
+        applyDesiredState(promptForPermission: enabled)
+        updateInterface()
+    }
+
+    func settingsViewControllerDidSetControlScrollEnabled(_ enabled: Bool) {
+        defaults.set(enabled, forKey: DefaultsKey.controlScrollEnabled)
         applyDesiredState(promptForPermission: enabled)
         updateInterface()
     }

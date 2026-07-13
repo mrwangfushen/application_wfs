@@ -18,10 +18,14 @@ TARGET := arm64-apple-macosx26.0
 
 CFLAGS := -std=c11 -O2 -Wall -Wextra -Werror -fblocks -arch arm64 \
 	-isysroot $(SDK) -mmacosx-version-min=26.0 -I Sources/Core
+OBJCFLAGS := -O2 -Wall -Wextra -Werror -fobjc-arc -arch arm64 \
+	-isysroot $(SDK) -mmacosx-version-min=26.0 -I Sources/Core
 
 CORE_OBJECTS := \
 	$(BUILD_DIR)/PinchRecognizer.o \
 	$(BUILD_DIR)/TapRecognizer.o \
+	$(BUILD_DIR)/ControlScrollRecognizer.o \
+	$(BUILD_DIR)/ScrollEventNormalizer.o \
 	$(BUILD_DIR)/MouseGestureEngine.o
 
 SWIFT_SOURCES := \
@@ -43,7 +47,13 @@ $(BUILD_DIR)/PinchRecognizer.o: Sources/Core/PinchRecognizer.c Sources/Core/Pinc
 $(BUILD_DIR)/TapRecognizer.o: Sources/Core/TapRecognizer.c Sources/Core/TapRecognizer.h Sources/Core/PinchRecognizer.h | $(BUILD_DIR)
 	clang $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/MouseGestureEngine.o: Sources/Core/MouseGestureEngine.c Sources/Core/MouseGestureEngine.h Sources/Core/MultitouchSupport.h Sources/Core/PinchRecognizer.h Sources/Core/TapRecognizer.h | $(BUILD_DIR)
+$(BUILD_DIR)/ControlScrollRecognizer.o: Sources/Core/ControlScrollRecognizer.c Sources/Core/ControlScrollRecognizer.h | $(BUILD_DIR)
+	clang $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/ScrollEventNormalizer.o: Sources/Core/ScrollEventNormalizer.m Sources/Core/ScrollEventNormalizer.h | $(BUILD_DIR)
+	clang $(OBJCFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/MouseGestureEngine.o: Sources/Core/MouseGestureEngine.c Sources/Core/MouseGestureEngine.h Sources/Core/MultitouchSupport.h Sources/Core/ControlScrollRecognizer.h Sources/Core/PinchRecognizer.h Sources/Core/ScrollEventNormalizer.h Sources/Core/TapRecognizer.h | $(BUILD_DIR)
 	clang $(CFLAGS) -c $< -o $@
 
 $(APP_BUNDLE): $(CORE_OBJECTS) $(SWIFT_SOURCES) Sources/App/BridgingHeader.h Resources/Info.plist Makefile
@@ -65,6 +75,10 @@ test: | $(BUILD_DIR)
 	clang $(CFLAGS) Sources/Core/TapRecognizer.c Tests/TapRecognizerTests.c \
 		-o $(BUILD_DIR)/TapRecognizerTests
 	$(BUILD_DIR)/TapRecognizerTests
+	clang $(CFLAGS) Sources/Core/ControlScrollRecognizer.c \
+		Tests/ControlScrollRecognizerTests.c \
+		-o $(BUILD_DIR)/ControlScrollRecognizerTests
+	$(BUILD_DIR)/ControlScrollRecognizerTests
 
 probe: | $(BUILD_DIR)
 	clang $(CFLAGS) Tests/MagicMouseProbe.c \
