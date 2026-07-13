@@ -1,4 +1,4 @@
-> If you find it useful, please give me a free star ⭐️
+> If you find it useful, please give me a free star ⭐️.Thank you very much!
 
 # Magic Mouse Booster
 
