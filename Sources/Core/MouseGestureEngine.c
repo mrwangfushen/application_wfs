@@ -46,6 +46,8 @@ typedef struct MPZDeviceEntry {
     MPZTapRecognizer tapRecognizer;
 } MPZDeviceEntry;
 
+extern void CoreDockSendNotification(CFStringRef notification, int unknown);
+
 struct MPZEngine {
     os_unfair_lock lock;
     bool enabled;
@@ -83,32 +85,16 @@ static CGEventRef eventTapCallback(
 
 static void cancelPendingTaps(MPZPendingTapState *state);
 
-static void postWindowOverviewShortcut(MPZControlScrollAction action) {
-    CGKeyCode keyCode = 0;
+static void showWindowOverview(MPZControlScrollAction action) {
+    CFStringRef notification = NULL;
     if (action == MPZControlScrollShowApplicationWindows) {
-        keyCode = 125;
+        notification = CFSTR("com.apple.expose.front.awake");
     } else if (action == MPZControlScrollShowAllWindows) {
-        keyCode = 126;
+        notification = CFSTR("com.apple.expose.awake");
     } else {
         return;
     }
-
-    CGEventRef keyDown = CGEventCreateKeyboardEvent(NULL, keyCode, true);
-    CGEventRef keyUp = CGEventCreateKeyboardEvent(NULL, keyCode, false);
-    if (keyDown && keyUp) {
-        CGEventSetFlags(keyDown, kCGEventFlagMaskControl);
-        CGEventSetFlags(keyUp, kCGEventFlagMaskControl);
-        CGEventSetIntegerValueField(keyDown, kCGEventSourceUserData, MPZSyntheticEventTag);
-        CGEventSetIntegerValueField(keyUp, kCGEventSourceUserData, MPZSyntheticEventTag);
-        CGEventPost(kCGHIDEventTap, keyDown);
-        CGEventPost(kCGHIDEventTap, keyUp);
-    }
-    if (keyDown) {
-        CFRelease(keyDown);
-    }
-    if (keyUp) {
-        CFRelease(keyUp);
-    }
+    CoreDockSendNotification(notification, 0);
 }
 
 static void postGesture(MPZPinchOutput output) {
@@ -764,7 +750,7 @@ static CGEventRef eventTapCallback(
     }
     os_unfair_lock_unlock(&engine->lock);
 
-    postWindowOverviewShortcut(controlScrollAction);
+    showWindowOverview(controlScrollAction);
     if ((suppress || suppressControlScroll) && type == kCGEventScrollWheel) {
         return NULL;
     }

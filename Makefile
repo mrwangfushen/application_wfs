@@ -93,7 +93,7 @@ verify: all test
 
 package:
 	rm -rf $(PACKAGE_BUILD_DIR) $(PACKAGE_ROOT)
-	$(MAKE) BUILD_DIR=$(PACKAGE_BUILD_DIR) SIGN_IDENTITY=- all
+	$(MAKE) BUILD_DIR=$(PACKAGE_BUILD_DIR) SIGN_IDENTITY=$(SIGN_IDENTITY) all
 	mkdir -p $(PACKAGE_ROOT)
 	cp -R $(PACKAGE_BUILD_DIR)/$(APP_NAME).app "$(PACKAGE_APP)"
 	ln -s /Applications "$(PACKAGE_ROOT)/Applications"

@@ -16,7 +16,7 @@ A lightweight macOS menu bar app that adds practical gestures to Magic Mouse.
 
 ## Download and install
 
-1. Download [Magic Mouse Booster 0.4.0](https://github.com/mrwangfushen/application_wfs/raw/refs/heads/main/Downloads/MagicMouseBooster-0.4.0.dmg).
+1. Download [Magic Mouse Booster 0.4.1](https://github.com/mrwangfushen/application_wfs/raw/refs/heads/main/Downloads/MagicMouseBooster-0.4.1.dmg).
 2. Open the DMG and drag **Magic Mouse Booster** to **Applications**.
 3. Launch the app.
 4. Allow **Magic Mouse Booster** in **System Settings → Privacy & Security → Accessibility**.
@@ -29,7 +29,7 @@ This build is not notarized by Apple. If macOS blocks the first launch, open **S
 - macOS 26 or later
 - Magic Mouse
 
-The Control + swipe feature uses the standard macOS Mission Control shortcuts. Keep **Control + Up Arrow** and **Control + Down Arrow** enabled in **System Settings → Keyboard → Keyboard Shortcuts → Mission Control**.
+The Control + swipe feature invokes Mission Control and App Exposé directly, so it does not depend on their keyboard shortcuts being enabled.
 
 ## Build from source
 
