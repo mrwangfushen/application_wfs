@@ -3,7 +3,9 @@
 #include <math.h>
 
 static const double kMinimumDistance = 0.03;
-static const double kPinchStartDistance = 0.012;
+static const double kPinchStartDistance = 0.018;
+static const double kPinchActivationInterval = 0.35;
+static const double kMaximumCentroidToRadialRatio = 0.4;
 static const double kScrollCancelDistance = 0.025;
 static const double kMinimumChangedValue = 0.0002;
 static const double kMaximumChangedValue = 0.08;
@@ -39,7 +41,8 @@ MPZPinchOutput MPZPinchRecognizerProcess(
     MPZPinchRecognizer *recognizer,
     const MPZPoint *points,
     size_t pointCount,
-    double sensitivity
+    double sensitivity,
+    double timestamp
 ) {
     if (pointCount != 2) {
         bool wasActive = recognizer->state == MPZRecognizerActive;
@@ -52,6 +55,7 @@ MPZPinchOutput MPZPinchRecognizerProcess(
         }
         recognizer->startDistance = 0;
         recognizer->previousDistance = 0;
+        recognizer->startTimestamp = 0;
 
         if (wasActive) {
             return (MPZPinchOutput){
@@ -87,16 +91,24 @@ MPZPinchOutput MPZPinchRecognizerProcess(
         recognizer->startDistance = distance;
         recognizer->previousDistance = distance;
         recognizer->startCentroid = centroid;
+        recognizer->startTimestamp = timestamp;
         return noOutput(false);
     }
 
     if (recognizer->state == MPZRecognizerPossible) {
+        if (timestamp < recognizer->startTimestamp
+            || timestamp - recognizer->startTimestamp > kPinchActivationInterval) {
+            recognizer->state = MPZRecognizerBlocked;
+            return noOutput(false);
+        }
+
         double radialMovement = distance - recognizer->startDistance;
         double centroidMovement = distanceBetween(centroid, recognizer->startCentroid);
         double absoluteRadialMovement = fabs(radialMovement);
 
         if (absoluteRadialMovement >= kPinchStartDistance
-            && absoluteRadialMovement > centroidMovement * 0.75) {
+            && centroidMovement
+                < absoluteRadialMovement * kMaximumCentroidToRadialRatio) {
             recognizer->state = MPZRecognizerActive;
             recognizer->previousDistance = distance;
             double value = log(distance / recognizer->startDistance) * sensitivity;

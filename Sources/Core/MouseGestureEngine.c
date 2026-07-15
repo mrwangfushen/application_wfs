@@ -621,7 +621,8 @@ static int touchCallback(
             &entry->recognizer,
             points,
             pointCount,
-            engine->sensitivity
+            engine->sensitivity,
+            timestamp
         );
     } else {
         MPZPinchRecognizerReset(&entry->recognizer);

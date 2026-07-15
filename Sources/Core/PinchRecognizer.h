@@ -33,6 +33,7 @@ typedef struct {
     double startDistance;
     double previousDistance;
     MPZPoint startCentroid;
+    double startTimestamp;
 } MPZPinchRecognizer;
 
 void MPZPinchRecognizerReset(MPZPinchRecognizer *recognizer);
@@ -41,5 +42,6 @@ MPZPinchOutput MPZPinchRecognizerProcess(
     MPZPinchRecognizer *recognizer,
     const MPZPoint *points,
     size_t pointCount,
-    double sensitivity
+    double sensitivity,
+    double timestamp
 );
