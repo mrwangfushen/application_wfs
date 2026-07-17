@@ -39,6 +39,10 @@ final class GestureEngine {
         MPZEngineSetPinchEnabled(handle, enabled)
     }
 
+    func setPinchDirectionLocked(_ locked: Bool) {
+        MPZEngineSetPinchDirectionLocked(handle, locked)
+    }
+
     func setTapClickEnabled(_ enabled: Bool) {
         MPZEngineSetTapClickEnabled(handle, enabled)
     }

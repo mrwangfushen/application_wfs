@@ -42,7 +42,8 @@ MPZPinchOutput MPZPinchRecognizerProcess(
     const MPZPoint *points,
     size_t pointCount,
     double sensitivity,
-    double timestamp
+    double timestamp,
+    bool lockDirection
 ) {
     if (pointCount != 2) {
         bool wasActive = recognizer->state == MPZRecognizerActive;
@@ -56,6 +57,7 @@ MPZPinchOutput MPZPinchRecognizerProcess(
         recognizer->startDistance = 0;
         recognizer->previousDistance = 0;
         recognizer->startTimestamp = 0;
+        recognizer->direction = 0;
 
         if (wasActive) {
             return (MPZPinchOutput){
@@ -112,6 +114,7 @@ MPZPinchOutput MPZPinchRecognizerProcess(
             recognizer->state = MPZRecognizerActive;
             recognizer->previousDistance = distance;
             double value = log(distance / recognizer->startDistance) * sensitivity;
+            recognizer->direction = value > 0 ? 1 : -1;
             return (MPZPinchOutput){
                 .phase = MPZGestureBegan,
                 .magnification = clamp(value, -kMaximumChangedValue, kMaximumChangedValue),
@@ -127,6 +130,9 @@ MPZPinchOutput MPZPinchRecognizerProcess(
     }
 
     double value = log(distance / recognizer->previousDistance) * sensitivity;
+    if (lockDirection && value * recognizer->direction < 0) {
+        return noOutput(true);
+    }
     recognizer->previousDistance = distance;
     if (fabs(value) < kMinimumChangedValue) {
         return noOutput(true);

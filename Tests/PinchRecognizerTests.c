@@ -11,7 +11,7 @@ static MPZPinchOutput process(
     double sensitivity
 ) {
     MPZPoint points[] = {a, b};
-    return MPZPinchRecognizerProcess(recognizer, points, 2, sensitivity, 0);
+    return MPZPinchRecognizerProcess(recognizer, points, 2, sensitivity, 0, false);
 }
 
 static MPZPinchOutput processAt(
@@ -22,7 +22,14 @@ static MPZPinchOutput processAt(
     double timestamp
 ) {
     MPZPoint points[] = {a, b};
-    return MPZPinchRecognizerProcess(recognizer, points, 2, sensitivity, timestamp);
+    return MPZPinchRecognizerProcess(
+        recognizer,
+        points,
+        2,
+        sensitivity,
+        timestamp,
+        false
+    );
 }
 
 static void testSpreadGesture(void) {
@@ -41,7 +48,7 @@ static void testSpreadGesture(void) {
     assert(output.phase == MPZGestureChanged);
     assert(output.magnification > 0);
 
-    output = MPZPinchRecognizerProcess(&recognizer, NULL, 0, 1.0, 0);
+    output = MPZPinchRecognizerProcess(&recognizer, NULL, 0, 1.0, 0, false);
     assert(output.phase == MPZGestureEnded);
 }
 
@@ -91,7 +98,8 @@ static void testSecondFingerMayArriveLater(void) {
         &firstFinger,
         1,
         1.0,
-        0
+        0,
+        false
     );
     assert(output.phase == MPZGestureNone);
     assert(recognizer.state == MPZRecognizerIdle);
@@ -213,6 +221,52 @@ static void testActiveGestureMayReverseDirection(void) {
     assert(output.magnification < 0);
 }
 
+static void testActiveGestureMayLockDirection(void) {
+    MPZPinchRecognizer recognizer = {0};
+    MPZPoint points[] = {
+        {0.40, 0.50},
+        {0.60, 0.50},
+    };
+
+    MPZPinchRecognizerProcess(&recognizer, points, 2, 1.0, 1.00, true);
+    points[0].x = 0.39;
+    points[1].x = 0.61;
+    MPZPinchOutput output = MPZPinchRecognizerProcess(
+        &recognizer,
+        points,
+        2,
+        1.0,
+        1.10,
+        true
+    );
+    assert(output.phase == MPZGestureBegan);
+    assert(output.magnification > 0);
+
+    points[0].x = 0.40;
+    points[1].x = 0.60;
+    output = MPZPinchRecognizerProcess(&recognizer, points, 2, 1.0, 1.15, true);
+    assert(output.phase == MPZGestureNone);
+    assert(output.suppressScroll);
+
+    points[0].x = 0.385;
+    points[1].x = 0.615;
+    output = MPZPinchRecognizerProcess(&recognizer, points, 2, 1.0, 1.20, true);
+    assert(output.phase == MPZGestureChanged);
+    assert(output.magnification > 0);
+
+    output = MPZPinchRecognizerProcess(&recognizer, NULL, 0, 1.0, 1.25, true);
+    assert(output.phase == MPZGestureEnded);
+
+    points[0].x = 0.35;
+    points[1].x = 0.65;
+    MPZPinchRecognizerProcess(&recognizer, points, 2, 1.0, 2.00, true);
+    points[0].x = 0.36;
+    points[1].x = 0.64;
+    output = MPZPinchRecognizerProcess(&recognizer, points, 2, 1.0, 2.10, true);
+    assert(output.phase == MPZGestureBegan);
+    assert(output.magnification < 0);
+}
+
 int main(void) {
     testSpreadGesture();
     testPinchGesture();
@@ -223,6 +277,7 @@ int main(void) {
     testSlowJitterCannotBeginGesture();
     testOneFingerMovementCannotBeginGesture();
     testActiveGestureMayReverseDirection();
+    testActiveGestureMayLockDirection();
     puts("PinchRecognizerTests: all tests passed");
     return 0;
 }

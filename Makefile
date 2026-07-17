@@ -79,6 +79,13 @@ test: | $(BUILD_DIR)
 		Tests/ControlScrollRecognizerTests.c \
 		-o $(BUILD_DIR)/ControlScrollRecognizerTests
 	$(BUILD_DIR)/ControlScrollRecognizerTests
+	swiftc -warnings-as-errors -sdk $(SDK) -target $(TARGET) \
+		-module-cache-path $(BUILD_DIR)/ModuleCache \
+		Sources/App/SettingsViewController.swift \
+		Tests/SettingsViewControllerTests.swift \
+		-o $(BUILD_DIR)/SettingsViewControllerTests \
+		-framework AppKit
+	$(BUILD_DIR)/SettingsViewControllerTests
 
 probe: | $(BUILD_DIR)
 	clang $(CFLAGS) Tests/MagicMouseProbe.c \

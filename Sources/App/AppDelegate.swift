@@ -4,6 +4,7 @@ import ApplicationServices
 final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewControllerDelegate {
     private enum DefaultsKey {
         static let pinchEnabled = "pinchEnabled"
+        static let pinchDirectionLocked = "pinchDirectionLocked"
         static let tapClickEnabled = "tapClickEnabled"
         static let middleTapEnabled = "middleTapEnabled"
         static let controlScrollEnabled = "controlScrollEnabled"
@@ -18,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
     private let popover = NSPopover()
     private var applicationNotificationTokens: [NSObjectProtocol] = []
     private var workspaceNotificationTokens: [NSObjectProtocol] = []
+    private var deviceRefreshTimer: Timer?
 
     private var pinchEnabled: Bool {
         defaults.bool(forKey: DefaultsKey.pinchEnabled)
@@ -25,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
 
     private var tapClickEnabled: Bool {
         defaults.bool(forKey: DefaultsKey.tapClickEnabled)
+    }
+
+    private var pinchDirectionLocked: Bool {
+        defaults.bool(forKey: DefaultsKey.pinchDirectionLocked)
     }
 
     private var middleTapEnabled: Bool {
@@ -50,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
     func applicationDidFinishLaunching(_ notification: Notification) {
         defaults.register(defaults: [
             DefaultsKey.pinchEnabled: true,
+            DefaultsKey.pinchDirectionLocked: false,
             DefaultsKey.tapClickEnabled: false,
             DefaultsKey.middleTapEnabled: false,
             DefaultsKey.controlScrollEnabled: false,
@@ -68,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        deviceRefreshTimer?.invalidate()
+        deviceRefreshTimer = nil
         gestureEngine?.setEnabled(false)
         applicationNotificationTokens.forEach(NotificationCenter.default.removeObserver)
         workspaceNotificationTokens.forEach(
@@ -106,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshDevices()
+                self?.scheduleDeviceRefresh()
             }
         )
         applicationNotificationTokens.append(
@@ -127,7 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshDevices()
+                self?.scheduleDeviceRefresh()
             }
         )
     }
@@ -138,14 +147,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
             return
         }
 
-        refreshDevices()
         updateInterface()
+        NSApplication.shared.activate(ignoringOtherApps: true)
         popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
     }
 
     private func refreshDevices() {
         gestureEngine?.refreshDevices()
         updateInterface()
+    }
+
+    private func scheduleDeviceRefresh() {
+        deviceRefreshTimer?.invalidate()
+        deviceRefreshTimer = Timer.scheduledTimer(
+            withTimeInterval: 0.25,
+            repeats: false
+        ) { [weak self] _ in
+            self?.deviceRefreshTimer = nil
+            self?.refreshDevices()
+        }
     }
 
     private func applyDesiredState(promptForPermission: Bool) {
@@ -156,6 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
         gestureEngine.setSensitivity(sensitivity)
         gestureEngine.setTapClickDelayMilliseconds(tapClickDelayMilliseconds)
         gestureEngine.setPinchEnabled(pinchEnabled)
+        gestureEngine.setPinchDirectionLocked(pinchDirectionLocked)
         gestureEngine.setTapClickEnabled(tapClickEnabled)
         gestureEngine.setMiddleTapEnabled(middleTapEnabled)
         gestureEngine.setControlScrollEnabled(controlScrollEnabled)
@@ -201,6 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
     private func updateInterface() {
         settingsViewController.update(
             pinchEnabled: pinchEnabled,
+            pinchDirectionLocked: pinchDirectionLocked,
             tapClickEnabled: tapClickEnabled,
             middleTapEnabled: middleTapEnabled,
             controlScrollEnabled: controlScrollEnabled,
@@ -214,6 +236,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsViewController
     func settingsViewControllerDidSetPinchEnabled(_ enabled: Bool) {
         defaults.set(enabled, forKey: DefaultsKey.pinchEnabled)
         applyDesiredState(promptForPermission: enabled)
+        updateInterface()
+    }
+
+    func settingsViewControllerDidSetPinchDirectionLocked(_ locked: Bool) {
+        defaults.set(locked, forKey: DefaultsKey.pinchDirectionLocked)
+        gestureEngine?.setPinchDirectionLocked(locked)
         updateInterface()
     }
 

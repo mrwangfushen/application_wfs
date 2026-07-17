@@ -7,16 +7,17 @@ A lightweight macOS menu bar app that adds practical gestures to Magic Mouse.
 ## Features
 
 - Pinch with two fingers to zoom.
+- Optionally lock each pinch to only zoom in or zoom out until the fingers lift.
 - Tap the left or right side for a left or right click.
 - Tap with three fingers for a middle click.
 - Adjust the left/right tap delay from 50 to 500 ms.
-- Hold Control and swipe up to show all application windows (Mission Control).
-- Hold Control and swipe down to show all windows of the current application (App Exposé).
+- Hold Control and scroll up to show all application windows (Mission Control).
+- Hold Control and scroll down to show all windows of the current application (App Exposé).
 - Enable or disable each feature from the menu bar.
 
 ## Download and install
 
-1. Download [Magic Mouse Booster 0.4.2](https://github.com/mrwangfushen/application_wfs/raw/refs/heads/main/Downloads/MagicMouseBooster-0.4.2.dmg).
+1. Download [Magic Mouse Booster 0.4.6](https://github.com/mrwangfushen/application_wfs/releases/download/v0.4.6/MagicMouseBooster-0.4.6.dmg).
 2. Open the DMG and drag **Magic Mouse Booster** to **Applications**.
 3. Launch the app.
 4. Allow **Magic Mouse Booster** in **System Settings → Privacy & Security → Accessibility**.

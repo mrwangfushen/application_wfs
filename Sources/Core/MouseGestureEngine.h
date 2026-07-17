@@ -14,6 +14,7 @@ bool MPZEngineIsEnabled(MPZEngine *engine);
 void MPZEngineSetSensitivity(MPZEngine *engine, double sensitivity);
 void MPZEngineSetTapClickDelayMilliseconds(MPZEngine *engine, double milliseconds);
 void MPZEngineSetPinchEnabled(MPZEngine *engine, bool enabled);
+void MPZEngineSetPinchDirectionLocked(MPZEngine *engine, bool locked);
 void MPZEngineSetTapClickEnabled(MPZEngine *engine, bool enabled);
 void MPZEngineSetMiddleTapEnabled(MPZEngine *engine, bool enabled);
 void MPZEngineSetControlScrollEnabled(MPZEngine *engine, bool enabled);

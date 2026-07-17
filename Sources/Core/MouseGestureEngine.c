@@ -42,6 +42,8 @@ typedef struct {
 typedef struct MPZDeviceEntry {
     struct MPZEngine *engine;
     MTDeviceRef device;
+    uint64_t identifier;
+    bool attached;
     MPZPinchRecognizer recognizer;
     MPZTapRecognizer tapRecognizer;
 } MPZDeviceEntry;
@@ -52,6 +54,7 @@ struct MPZEngine {
     os_unfair_lock lock;
     bool enabled;
     bool pinchEnabled;
+    bool pinchDirectionLocked;
     bool tapClickEnabled;
     bool middleTapEnabled;
     bool controlScrollEnabled;
@@ -274,42 +277,110 @@ static void pendingTapStateInvalidate(MPZPendingTapState *state) {
     pendingTapStateRelease(state);
 }
 
-static void stopDevices(MPZEngine *engine) {
-    for (size_t index = 0; index < engine->deviceCount; index++) {
-        MPZDeviceEntry *entry = engine->devices[index];
+static uint64_t deviceIdentifier(MTDeviceRef device) {
+    io_service_t service = MTDeviceGetService(device);
+    uint64_t identifier = 0;
+    if (service != IO_OBJECT_NULL
+        && IORegistryEntryGetRegistryEntryID(service, &identifier) == KERN_SUCCESS) {
+        return identifier;
+    }
+    return (uint64_t)service;
+}
+
+static CFArrayRef createMagicMouseDeviceList(void) {
+    CFArrayRef allDevices = MTDeviceCreateList();
+    if (!allDevices) {
+        return NULL;
+    }
+
+    CFMutableArrayRef magicMice = CFArrayCreateMutable(
+        kCFAllocatorDefault,
+        0,
+        &kCFTypeArrayCallBacks
+    );
+    if (!magicMice) {
+        CFRelease(allDevices);
+        return NULL;
+    }
+
+    CFIndex count = CFArrayGetCount(allDevices);
+    for (CFIndex index = 0; index < count; index++) {
+        MTDeviceRef device = (MTDeviceRef)CFArrayGetValueAtIndex(allDevices, index);
+        uint32_t familyID = 0;
+        if (MTDeviceGetFamilyID(device, &familyID) == noErr
+            && familyID == MPZMTDeviceFamilyMagicMouse) {
+            CFArrayAppendValue(magicMice, device);
+        }
+    }
+
+    CFRelease(allDevices);
+    return magicMice;
+}
+
+static bool deviceListMatches(MPZEngine *engine, CFArrayRef deviceList) {
+    size_t listCount = (size_t)CFArrayGetCount(deviceList);
+    os_unfair_lock_lock(&engine->lock);
+    bool matches = engine->deviceCount == listCount;
+    for (size_t index = 0; matches && index < engine->deviceCount; index++) {
+        uint64_t identifier = engine->devices[index]->identifier;
+        bool found = false;
+        for (CFIndex listIndex = 0; listIndex < (CFIndex)listCount; listIndex++) {
+            MTDeviceRef device = (MTDeviceRef)CFArrayGetValueAtIndex(
+                deviceList,
+                listIndex
+            );
+            if (deviceIdentifier(device) == identifier) {
+                found = true;
+                break;
+            }
+        }
+        matches = found;
+    }
+    os_unfair_lock_unlock(&engine->lock);
+    return matches;
+}
+
+static void stopDeviceEntries(MPZDeviceEntry **devices, size_t deviceCount) {
+    for (size_t index = 0; index < deviceCount; index++) {
+        MPZDeviceEntry *entry = devices[index];
         MTUnregisterContactFrameCallback(entry->device, touchCallback);
         MTDeviceStop(entry->device);
         CFRelease(entry->device);
         free(entry);
     }
-    free(engine->devices);
-    engine->devices = NULL;
-    engine->deviceCount = 0;
+    free(devices);
 }
 
-static void startDevices(MPZEngine *engine) {
-    CFArrayRef deviceList = MTDeviceCreateList();
-    if (!deviceList) {
-        return;
+static bool stopDevices(MPZEngine *engine) {
+    os_unfair_lock_lock(&engine->lock);
+    MPZDeviceEntry **devices = engine->devices;
+    size_t deviceCount = engine->deviceCount;
+    bool shouldEndGesture = engine->activeDevice != NULL;
+    for (size_t index = 0; index < deviceCount; index++) {
+        devices[index]->attached = false;
     }
+    engine->devices = NULL;
+    engine->deviceCount = 0;
+    engine->activeDevice = NULL;
+    os_unfair_lock_unlock(&engine->lock);
 
+    stopDeviceEntries(devices, deviceCount);
+    return shouldEndGesture;
+}
+
+static void startDevicesFromList(MPZEngine *engine, CFArrayRef deviceList) {
     CFIndex count = CFArrayGetCount(deviceList);
+    MPZDeviceEntry **devices = NULL;
     if (count > 0) {
-        engine->devices = calloc((size_t)count, sizeof(*engine->devices));
-        if (!engine->devices) {
-            CFRelease(deviceList);
+        devices = calloc((size_t)count, sizeof(*devices));
+        if (!devices) {
             return;
         }
     }
 
+    size_t deviceCount = 0;
     for (CFIndex index = 0; index < count; index++) {
         MTDeviceRef device = (MTDeviceRef)CFArrayGetValueAtIndex(deviceList, index);
-        uint32_t familyID = 0;
-        if (MTDeviceGetFamilyID(device, &familyID) != noErr
-            || familyID != MPZMTDeviceFamilyMagicMouse) {
-            continue;
-        }
-
         MPZDeviceEntry *entry = calloc(1, sizeof(*entry));
         if (!entry) {
             continue;
@@ -317,19 +388,42 @@ static void startDevices(MPZEngine *engine) {
 
         entry->engine = engine;
         entry->device = (MTDeviceRef)CFRetain(device);
+        entry->identifier = deviceIdentifier(device);
         MPZPinchRecognizerReset(&entry->recognizer);
         MPZTapRecognizerReset(&entry->tapRecognizer);
-        engine->devices[engine->deviceCount++] = entry;
 
         MTRegisterContactFrameCallbackWithRefcon(device, touchCallback, entry);
         if (MTDeviceStart(device, 0) != noErr) {
             MTUnregisterContactFrameCallback(device, touchCallback);
-            engine->deviceCount--;
             CFRelease(entry->device);
             free(entry);
+            continue;
         }
+        devices[deviceCount++] = entry;
     }
 
+    os_unfair_lock_lock(&engine->lock);
+    bool shouldAttach = engine->enabled && engine->devices == NULL;
+    if (shouldAttach) {
+        engine->devices = devices;
+        engine->deviceCount = deviceCount;
+        for (size_t index = 0; index < deviceCount; index++) {
+            devices[index]->attached = true;
+        }
+    }
+    os_unfair_lock_unlock(&engine->lock);
+
+    if (!shouldAttach) {
+        stopDeviceEntries(devices, deviceCount);
+    }
+}
+
+static void startDevices(MPZEngine *engine) {
+    CFArrayRef deviceList = createMagicMouseDeviceList();
+    if (!deviceList) {
+        return;
+    }
+    startDevicesFromList(engine, deviceList);
     CFRelease(deviceList);
 }
 
@@ -417,17 +511,26 @@ bool MPZEngineSetEnabled(MPZEngine *engine, bool enabled) {
         return false;
     }
 
-    if (enabled == engine->enabled) {
+    os_unfair_lock_lock(&engine->lock);
+    bool currentlyEnabled = engine->enabled;
+    os_unfair_lock_unlock(&engine->lock);
+    if (enabled == currentlyEnabled) {
         return true;
     }
 
     if (!enabled) {
         os_unfair_lock_lock(&engine->lock);
         engine->enabled = false;
-        engine->activeDevice = NULL;
         os_unfair_lock_unlock(&engine->lock);
         cancelPendingTaps(engine->pendingTapState);
-        stopDevices(engine);
+        bool shouldEndGesture = stopDevices(engine);
+        if (shouldEndGesture) {
+            postGesture((MPZPinchOutput){
+                .phase = MPZGestureEnded,
+                .magnification = 0,
+                .suppressScroll = false,
+            });
+        }
         stopEventTap(engine);
         return true;
     }
@@ -498,6 +601,15 @@ void MPZEngineSetPinchEnabled(MPZEngine *engine, bool enabled) {
     }
 }
 
+void MPZEngineSetPinchDirectionLocked(MPZEngine *engine, bool locked) {
+    if (!engine) {
+        return;
+    }
+    os_unfair_lock_lock(&engine->lock);
+    engine->pinchDirectionLocked = locked;
+    os_unfair_lock_unlock(&engine->lock);
+}
+
 void MPZEngineSetTapClickEnabled(MPZEngine *engine, bool enabled) {
     if (!engine) {
         return;
@@ -538,12 +650,27 @@ void MPZEngineRefreshDevices(MPZEngine *engine) {
     if (!engine || !MPZEngineIsEnabled(engine)) {
         return;
     }
-    os_unfair_lock_lock(&engine->lock);
-    engine->activeDevice = NULL;
-    os_unfair_lock_unlock(&engine->lock);
+
+    CFArrayRef deviceList = createMagicMouseDeviceList();
+    if (!deviceList) {
+        return;
+    }
+    if (deviceListMatches(engine, deviceList)) {
+        CFRelease(deviceList);
+        return;
+    }
+
+    bool shouldEndGesture = stopDevices(engine);
     cancelPendingTaps(engine->pendingTapState);
-    stopDevices(engine);
-    startDevices(engine);
+    if (shouldEndGesture) {
+        postGesture((MPZPinchOutput){
+            .phase = MPZGestureEnded,
+            .magnification = 0,
+            .suppressScroll = false,
+        });
+    }
+    startDevicesFromList(engine, deviceList);
+    CFRelease(deviceList);
 }
 
 size_t MPZEngineGetDeviceCount(MPZEngine *engine) {
@@ -607,7 +734,7 @@ static int touchCallback(
     }
 
     os_unfair_lock_lock(&engine->lock);
-    if (!engine->enabled) {
+    if (!engine->enabled || !entry->attached) {
         os_unfair_lock_unlock(&engine->lock);
         return 0;
     }
@@ -622,7 +749,8 @@ static int touchCallback(
             points,
             pointCount,
             engine->sensitivity,
-            timestamp
+            timestamp,
+            engine->pinchDirectionLocked
         );
     } else {
         MPZPinchRecognizerReset(&entry->recognizer);
@@ -659,9 +787,8 @@ static int touchCallback(
         clickDelayNanoseconds = engine->tapClickDelayNanoseconds;
     }
     scheduleMouseClick(engine->pendingTapState, tapAction, clickDelayNanoseconds);
-    os_unfair_lock_unlock(&engine->lock);
-
     postGesture(output);
+    os_unfair_lock_unlock(&engine->lock);
     return 0;
 }
 
